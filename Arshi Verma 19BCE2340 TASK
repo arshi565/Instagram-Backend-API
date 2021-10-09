@@ -1,0 +1,2814 @@
+Arshi Verma 19BCE2340
+
+USER
+
+
+package goinsta
+
+
+
+
+import (
+
+"encoding/json"
+
+"errors"
+
+"fmt"
+
+"strconv"
+
+)
+
+
+
+// Users is a struct that stores many user's returned by many different methods.
+
+type Users struct {
+
+inst *Instagram
+
+
+
+// It's a bit confusing have the same structure
+
+// in the Instagram strucure and in the multiple users
+
+// calls
+
+
+
+err error
+
+endpoint string
+
+
+
+Status string `json:"status"`
+
+BigList bool `json:"big_list"`
+
+Users []User `json:"users"`
+
+PageSize int `json:"page_size"`
+
+RawNextID json.RawMessage `json:"next_max_id"`
+
+NextID string `json:"-"`
+
+}
+
+
+
+func newUsers(inst *Instagram) *Users {
+
+users := &Users{inst: inst}
+
+
+
+return users
+
+}
+
+
+
+// SetInstagram sets new instagram to user structure
+
+func (users *Users) SetInstagram(inst *Instagram) {
+
+users.inst = inst
+
+}
+
+
+
+// ErrNoMore is an error that comes when there is no more elements available on the list.
+
+var ErrNoMore = errors.New("List end have been reached")
+
+
+
+// Next allows to paginate after calling:
+
+// Account.Follow* and User.Follow*
+
+//
+
+// New user list is stored inside Users
+
+//
+
+// returns false when list reach the end.
+
+func (users *Users) Next() bool {
+
+if users.err != nil {
+
+return false
+
+}
+
+
+
+insta := users.inst
+
+endpoint := users.endpoint
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: endpoint,
+
+Query: map[string]string{
+
+"max_id": users.NextID,
+
+"ig_sig_key_version": goInstaSigKeyVersion,
+
+"rank_token": insta.rankToken,
+
+},
+
+},
+
+)
+
+if err == nil {
+
+usrs := Users{}
+
+err = json.Unmarshal(body, &usrs)
+
+if err == nil {
+
+if len(usrs.RawNextID) > 0 && usrs.RawNextID[0] == '"' && usrs.RawNextID[len(usrs.RawNextID)-1] == '"' {
+
+if err := json.Unmarshal(usrs.RawNextID, &usrs.NextID); err != nil {
+
+users.err = err
+
+return false
+
+}
+
+} else {
+
+var nextID int64
+
+if err := json.Unmarshal(usrs.RawNextID, &nextID); err != nil {
+
+users.err = err
+
+return false
+
+}
+
+usrs.NextID = strconv.FormatInt(nextID, 10)
+
+}
+
+*users = usrs
+
+if !usrs.BigList || usrs.NextID == "" {
+
+users.err = ErrNoMore
+
+}
+
+users.inst = insta
+
+users.endpoint = endpoint
+
+users.setValues()
+
+return true
+
+}
+
+}
+
+users.err = err
+
+return false
+
+}
+
+
+
+// Error returns users error
+
+func (users *Users) Error() error {
+
+return users.err
+
+}
+
+
+
+func (users *Users) setValues() {
+
+for i := range users.Users {
+
+users.Users[i].inst = users.inst
+
+}
+
+}
+
+
+
+type userResp struct {
+
+Status string `json:"status"`
+
+User User `json:"user"`
+
+}
+
+
+
+// User is the representation of instagram's user profile
+
+type User struct {
+
+inst *Instagram
+
+
+
+ID int64 `json:"pk"`
+
+Username string `json:"username"`
+
+FullName string `json:"full_name"`
+
+Biography string `json:"biography"`
+
+ProfilePicURL string `json:"profile_pic_url"`
+
+Email string `json:"email"`
+
+PhoneNumber string `json:"phone_number"`
+
+IsBusiness bool `json:"is_business"`
+
+Gender int `json:"gender"`
+
+ProfilePicID string `json:"profile_pic_id"`
+
+HasAnonymousProfilePicture bool `json:"has_anonymous_profile_picture"`
+
+IsPrivate bool `json:"is_private"`
+
+IsUnpublished bool `json:"is_unpublished"`
+
+AllowedCommenterType string `json:"allowed_commenter_type"`
+
+IsVerified bool `json:"is_verified"`
+
+MediaCount int `json:"media_count"`
+
+FollowerCount int `json:"follower_count"`
+
+FollowingCount int `json:"following_count"`
+
+FollowingTagCount int `json:"following_tag_count"`
+
+MutualFollowersID []int64 `json:"profile_context_mutual_follow_ids"`
+
+ProfileContext string `json:"profile_context"`
+
+GeoMediaCount int `json:"geo_media_count"`
+
+ExternalURL string `json:"external_url"`
+
+HasBiographyTranslation bool `json:"has_biography_translation"`
+
+ExternalLynxURL string `json:"external_lynx_url"`
+
+BiographyWithEntities struct {
+
+RawText string `json:"raw_text"`
+
+Entities []interface{} `json:"entities"`
+
+} `json:"biography_with_entities"`
+
+UsertagsCount int `json:"usertags_count"`
+
+HasChaining bool `json:"has_chaining"`
+
+IsFavorite bool `json:"is_favorite"`
+
+IsFavoriteForStories bool `json:"is_favorite_for_stories"`
+
+IsFavoriteForHighlights bool `json:"is_favorite_for_highlights"`
+
+CanBeReportedAsFraud bool `json:"can_be_reported_as_fraud"`
+
+ShowShoppableFeed bool `json:"show_shoppable_feed"`
+
+ShoppablePostsCount int `json:"shoppable_posts_count"`
+
+ReelAutoArchive string `json:"reel_auto_archive"`
+
+HasHighlightReels bool `json:"has_highlight_reels"`
+
+PublicEmail string `json:"public_email"`
+
+PublicPhoneNumber string `json:"public_phone_number"`
+
+PublicPhoneCountryCode string `json:"public_phone_country_code"`
+
+ContactPhoneNumber string `json:"contact_phone_number"`
+
+CityID int64 `json:"city_id"`
+
+CityName string `json:"city_name"`
+
+AddressStreet string `json:"address_street"`
+
+DirectMessaging string `json:"direct_messaging"`
+
+Latitude float64 `json:"latitude"`
+
+Longitude float64 `json:"longitude"`
+
+Category string `json:"category"`
+
+BusinessContactMethod string `json:"business_contact_method"`
+
+IncludeDirectBlacklistStatus bool `json:"include_direct_blacklist_status"`
+
+HdProfilePicURLInfo PicURLInfo `json:"hd_profile_pic_url_info"`
+
+HdProfilePicVersions []PicURLInfo `json:"hd_profile_pic_versions"`
+
+School School `json:"school"`
+
+Byline string `json:"byline"`
+
+SocialContext string `json:"social_context,omitempty"`
+
+SearchSocialContext string `json:"search_social_context,omitempty"`
+
+MutualFollowersCount float64 `json:"mutual_followers_count"`
+
+LatestReelMedia int64 `json:"latest_reel_media,omitempty"`
+
+IsCallToActionEnabled bool `json:"is_call_to_action_enabled"`
+
+FbPageCallToActionID string `json:"fb_page_call_to_action_id"`
+
+Zip string `json:"zip"`
+
+Friendship Friendship `json:"friendship_status"`
+
+}
+
+
+
+// SetInstagram will update instagram instance for selected User.
+
+func (user *User) SetInstagram(insta *Instagram) {
+
+user.inst = insta
+
+}
+
+
+
+// NewUser returns prepared user to be used with his functions.
+
+func (inst *Instagram) NewUser() *User {
+
+return &User{inst: inst}
+
+}
+
+
+
+// Sync updates user info
+
+//
+
+// params can be:
+
+// bool: must be true if you want to include FriendShip call. See goinsta.FriendShip
+
+//
+
+// See example: examples/user/friendship.go
+
+func (user *User) Sync(params ...interface{}) error {
+
+insta := user.inst
+
+body, err := insta.sendSimpleRequest(urlUserInfo, user.ID)
+
+if err == nil {
+
+resp := userResp{}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+*user = resp.User
+
+user.inst = insta
+
+for _, param := range params {
+
+switch b := param.(type) {
+
+case bool:
+
+if b {
+
+err = user.FriendShip()
+
+}
+
+}
+
+}
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// Following returns a list of user following.
+
+//
+
+// Users.Next can be used to paginate
+
+//
+
+// See example: examples/user/following.go
+
+func (user *User) Following() *Users {
+
+users := &Users{}
+
+users.inst = user.inst
+
+users.endpoint = fmt.Sprintf(urlFollowing, user.ID)
+
+return users
+
+}
+
+
+
+// Followers returns a list of user followers.
+
+//
+
+// Users.Next can be used to paginate
+
+//
+
+// See example: examples/user/followers.go
+
+func (user *User) Followers() *Users {
+
+users := &Users{}
+
+users.inst = user.inst
+
+users.endpoint = fmt.Sprintf(urlFollowers, user.ID)
+
+return users
+
+}
+
+
+
+// Block blocks user
+
+//
+
+// This function updates current User.Friendship structure.
+
+//
+
+// See example: examples/user/block.go
+
+func (user *User) Block() error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"user_id": user.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserBlock, user.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+resp := friendResp{}
+
+err = json.Unmarshal(body, &resp)
+
+user.Friendship = resp.Friendship
+
+if err != nil {
+
+return err
+
+}
+
+
+
+return nil
+
+}
+
+
+
+// Unblock unblocks user
+
+//
+
+// This function updates current User.Friendship structure.
+
+//
+
+// See example: examples/user/unblock.go
+
+func (user *User) Unblock() error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"user_id": user.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserUnblock, user.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+resp := friendResp{}
+
+err = json.Unmarshal(body, &resp)
+
+user.Friendship = resp.Friendship
+
+if err != nil {
+
+return err
+
+}
+
+
+
+return nil
+
+}
+
+
+
+// Mute mutes user from appearing in the feed or story reel
+
+//
+
+// Use one of the pre-defined constants to choose what exactly to mute:
+
+// goinsta.MuteAll, goinsta.MuteStory, goinsta.MuteFeed
+
+// This function updates current User.Friendship structure.
+
+func (user *User) Mute(opt muteOption) error {
+
+return muteOrUnmute(user, opt, urlUserMute)
+
+}
+
+
+
+// Unmute unmutes user so it appears in the feed or story reel again
+
+//
+
+// Use one of the pre-defined constants to choose what exactly to unmute:
+
+// goinsta.MuteAll, goinsta.MuteStory, goinsta.MuteFeed
+
+// This function updates current User.Friendship structure.
+
+func (user *User) Unmute(opt muteOption) error {
+
+return muteOrUnmute(user, opt, urlUserUnmute)
+
+}
+
+
+
+func muteOrUnmute(user *User, opt muteOption, endpoint string) error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+generateMuteData(user, opt),
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: endpoint,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+resp := friendResp{}
+
+err = json.Unmarshal(body, &resp)
+
+user.Friendship = resp.Friendship
+
+if err != nil {
+
+return err
+
+}
+
+
+
+return nil
+
+}
+
+
+
+func generateMuteData(user *User, opt muteOption) map[string]interface{} {
+
+data := map[string]interface{}{
+
+"user_id": user.ID,
+
+}
+
+
+
+switch opt {
+
+case MuteAll:
+
+data["target_reel_author_id"] = user.ID
+
+data["target_posts_author_id"] = user.ID
+
+case MuteStory:
+
+data["target_reel_author_id"] = user.ID
+
+case MuteFeed:
+
+data["target_posts_author_id"] = user.ID
+
+}
+
+
+
+return data
+
+}
+
+
+
+// Follow started following some user
+
+//
+
+// This function performs a follow call. If user is private
+
+// you have to wait until he/she accepts you.
+
+//
+
+// If the account is public User.Friendship will be updated
+
+//
+
+// See example: examples/user/follow.go
+
+func (user *User) Follow() error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"user_id": user.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserFollow, user.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+resp := friendResp{}
+
+err = json.Unmarshal(body, &resp)
+
+user.Friendship = resp.Friendship
+
+if err != nil {
+
+return err
+
+}
+
+
+
+return nil
+
+}
+
+
+
+// Unfollow unfollows user
+
+//
+
+// User.Friendship will be updated
+
+//
+
+// See example: examples/user/unfollow.go
+
+func (user *User) Unfollow() error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"user_id": user.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserUnfollow, user.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+resp := friendResp{}
+
+err = json.Unmarshal(body, &resp)
+
+user.Friendship = resp.Friendship
+
+if err != nil {
+
+return err
+
+}
+
+
+
+return nil
+
+}
+
+
+
+// FriendShip allows user to get friend relationship.
+
+//
+
+// The result is stored in user.Friendship
+
+func (user *User) FriendShip() error {
+
+insta := user.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"user_id": user.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlFriendship, user.ID),
+
+Query: generateSignature(data),
+
+},
+
+)
+
+if err == nil {
+
+err = json.Unmarshal(body, &user.Friendship)
+
+}
+
+return err
+
+}
+
+
+
+// Feed returns user feeds (media)
+
+//
+
+// params can be:
+
+// string: timestamp of the minimum media timestamp.
+
+//
+
+// For pagination use FeedMedia.Next()
+
+//
+
+// See example: examples/user/feed.go
+
+func (user *User) Feed(params ...interface{}) *FeedMedia {
+
+insta := user.inst
+
+
+
+media := &FeedMedia{}
+
+media.inst = insta
+
+media.endpoint = urlUserFeed
+
+media.uid = user.ID
+
+
+
+for _, param := range params {
+
+switch s := param.(type) {
+
+case string:
+
+media.timestamp = s
+
+}
+
+}
+
+
+
+return media
+
+}
+
+
+
+// Stories returns user stories
+
+//
+
+// Use StoryMedia.Next for pagination.
+
+//
+
+// See example: examples/user/stories.go
+
+func (user *User) Stories() *StoryMedia {
+
+media := &StoryMedia{}
+
+media.uid = user.ID
+
+media.inst = user.inst
+
+media.endpoint = urlUserStories
+
+return media
+
+}
+
+
+
+// Highlights represents saved stories.
+
+//
+
+// See example: examples/user/highlights.go
+
+func (user *User) Highlights() ([]StoryMedia, error) {
+
+query := []trayRequest{
+
+{"SUPPORTED_SDK_VERSIONS", "9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0"},
+
+{"FACE_TRACKER_VERSION", "10"},
+
+{"segmentation", "segmentation_enabled"},
+
+{"COMPRESSION", "ETC2_COMPRESSION"},
+
+}
+
+data, err := json.Marshal(query)
+
+if err != nil {
+
+return nil, err
+
+}
+
+body, err := user.inst.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserHighlights, user.ID),
+
+Query: generateSignature(b2s(data)),
+
+},
+
+)
+
+if err == nil {
+
+tray := &Tray{}
+
+err = json.Unmarshal(body, &tray)
+
+if err == nil {
+
+tray.set(user.inst, "")
+
+for i := range tray.Stories {
+
+if len(tray.Stories[i].Items) == 0 {
+
+err = tray.Stories[i].Sync()
+
+if err != nil {
+
+return nil, err
+
+}
+
+}
+
+}
+
+return tray.Stories, nil
+
+}
+
+}
+
+return nil, err
+
+}
+
+
+
+// Tags returns media where user is tagged in
+
+//
+
+// For pagination use FeedMedia.Next()
+
+//
+
+// See example: examples/user/tags.go
+
+func (user *User) Tags(minTimestamp []byte) (*FeedMedia, error) {
+
+timestamp := b2s(minTimestamp)
+
+body, err := user.inst.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserTags, user.ID),
+
+Query: map[string]string{
+
+"max_id": "",
+
+"rank_token": user.inst.rankToken,
+
+"min_timestamp": timestamp,
+
+"ranked_content": "true",
+
+},
+
+},
+
+)
+
+if err != nil {
+
+return nil, err
+
+}
+
+
+
+media := &FeedMedia{}
+
+err = json.Unmarshal(body, media)
+
+media.inst = user.inst
+
+media.endpoint = urlUserTags
+
+media.uid = user.ID
+
+return media, err
+
+}
+
+
+
+
+
+
+
+POST
+
+
+package goinsta
+
+
+
+
+import (
+
+"encoding/json"
+
+"fmt"
+
+)
+
+
+
+type accountResp struct {
+
+Status string `json:"status"`
+
+Account Account `json:"logged_in_user"`
+
+}
+
+
+
+// Account is personal account object
+
+//
+
+// See examples: examples/account/*
+
+type Account struct {
+
+inst *Instagram
+
+
+
+ID int64 `json:"pk"`
+
+Username string `json:"username"`
+
+FullName string `json:"full_name"`
+
+Biography string `json:"biography"`
+
+ProfilePicURL string `json:"profile_pic_url"`
+
+Email string `json:"email"`
+
+PhoneNumber string `json:"phone_number"`
+
+IsBusiness bool `json:"is_business"`
+
+Gender int `json:"gender"`
+
+ProfilePicID string `json:"profile_pic_id"`
+
+CanSeeOrganicInsights bool `json:"can_see_organic_insights"`
+
+ShowInsightsTerms bool `json:"show_insights_terms"`
+
+Nametag Nametag `json:"nametag"`
+
+HasAnonymousProfilePicture bool `json:"has_anonymous_profile_picture"`
+
+IsPrivate bool `json:"is_private"`
+
+IsUnpublished bool `json:"is_unpublished"`
+
+AllowedCommenterType string `json:"allowed_commenter_type"`
+
+IsVerified bool `json:"is_verified"`
+
+MediaCount int `json:"media_count"`
+
+FollowerCount int `json:"follower_count"`
+
+FollowingCount int `json:"following_count"`
+
+GeoMediaCount int `json:"geo_media_count"`
+
+ExternalURL string `json:"external_url"`
+
+HasBiographyTranslation bool `json:"has_biography_translation"`
+
+ExternalLynxURL string `json:"external_lynx_url"`
+
+HdProfilePicURLInfo PicURLInfo `json:"hd_profile_pic_url_info"`
+
+HdProfilePicVersions []PicURLInfo `json:"hd_profile_pic_versions"`
+
+UsertagsCount int `json:"usertags_count"`
+
+HasChaining bool `json:"has_chaining"`
+
+ReelAutoArchive string `json:"reel_auto_archive"`
+
+PublicEmail string `json:"public_email"`
+
+PublicPhoneNumber string `json:"public_phone_number"`
+
+PublicPhoneCountryCode string `json:"public_phone_country_code"`
+
+ContactPhoneNumber string `json:"contact_phone_number"`
+
+Byline string `json:"byline"`
+
+SocialContext string `json:"social_context,omitempty"`
+
+SearchSocialContext string `json:"search_social_context,omitempty"`
+
+MutualFollowersCount float64 `json:"mutual_followers_count"`
+
+LatestReelMedia int64 `json:"latest_reel_media,omitempty"`
+
+CityID int64 `json:"city_id"`
+
+CityName string `json:"city_name"`
+
+AddressStreet string `json:"address_street"`
+
+DirectMessaging string `json:"direct_messaging"`
+
+Latitude float64 `json:"latitude"`
+
+Longitude float64 `json:"longitude"`
+
+Category string `json:"category"`
+
+BusinessContactMethod string `json:"business_contact_method"`
+
+IsCallToActionEnabled bool `json:"is_call_to_action_enabled"`
+
+FbPageCallToActionID string `json:"fb_page_call_to_action_id"`
+
+Zip string `json:"zip"`
+
+AllowContactsSync bool `json:"allow_contacts_sync"`
+
+CanBoostPost bool `json:"can_boost_post"`
+
+}
+
+
+
+// Sync updates account information
+
+func (account *Account) Sync() error {
+
+insta := account.inst
+
+data, err := insta.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+body, err := insta.sendRequest(&reqOptions{
+
+Endpoint: urlCurrentUser,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+})
+
+if err == nil {
+
+resp := profResp{}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+*account = resp.Account
+
+account.inst = insta
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// ChangePassword changes current password.
+
+//
+
+// GoInsta does not store current instagram password (for security reasons)
+
+// If you want to change your password you must parse old and new password.
+
+//
+
+// See example: examples/account/changePass.go
+
+func (account *Account) ChangePassword(old, new string) error {
+
+insta := account.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"old_password": old,
+
+"new_password1": new,
+
+"new_password2": new,
+
+},
+
+)
+
+if err == nil {
+
+_, err = insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlChangePass,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+}
+
+return err
+
+}
+
+
+
+type profResp struct {
+
+Status string `json:"status"`
+
+Account Account `json:"user"`
+
+}
+
+
+
+// RemoveProfilePic removes current profile picture
+
+//
+
+// This function updates current Account information.
+
+//
+
+// See example: examples/account/removeProfilePic.go
+
+func (account *Account) RemoveProfilePic() error {
+
+insta := account.inst
+
+data, err := insta.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlRemoveProfPic,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err == nil {
+
+resp := profResp{}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+*account = resp.Account
+
+account.inst = insta
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// SetPrivate sets account to private mode.
+
+//
+
+// This function updates current Account information.
+
+//
+
+// See example: examples/account/setPrivate.go
+
+func (account *Account) SetPrivate() error {
+
+insta := account.inst
+
+data, err := insta.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlSetPrivate,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err == nil {
+
+resp := profResp{}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+*account = resp.Account
+
+account.inst = insta
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// SetPublic sets account to public mode.
+
+//
+
+// This function updates current Account information.
+
+//
+
+// See example: examples/account/setPublic.go
+
+func (account *Account) SetPublic() error {
+
+insta := account.inst
+
+data, err := insta.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlSetPublic,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err == nil {
+
+resp := profResp{}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+*account = resp.Account
+
+account.inst = insta
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// Followers returns a list of user followers.
+
+//
+
+// Users.Next can be used to paginate
+
+//
+
+// See example: examples/account/followers.go
+
+func (account *Account) Followers() *Users {
+
+endpoint := fmt.Sprintf(urlFollowers, account.ID)
+
+users := &Users{}
+
+users.inst = account.inst
+
+users.endpoint = endpoint
+
+return users
+
+}
+
+
+
+// Following returns a list of user following.
+
+//
+
+// Users.Next can be used to paginate
+
+//
+
+// See example: examples/account/following.go
+
+func (account *Account) Following() *Users {
+
+endpoint := fmt.Sprintf(urlFollowing, account.ID)
+
+users := &Users{}
+
+users.inst = account.inst
+
+users.endpoint = endpoint
+
+return users
+
+}
+
+
+
+// Feed returns current account feed
+
+//
+
+// params can be:
+
+// string: timestamp of the minimum media timestamp.
+
+//
+
+// minTime is the minimum timestamp of media.
+
+//
+
+// For pagination use FeedMedia.Next()
+
+func (account *Account) Feed(params ...interface{}) *FeedMedia {
+
+insta := account.inst
+
+
+
+media := &FeedMedia{}
+
+media.inst = insta
+
+media.endpoint = urlUserFeed
+
+media.uid = account.ID
+
+
+
+for _, param := range params {
+
+switch s := param.(type) {
+
+case string:
+
+media.timestamp = s
+
+}
+
+}
+
+
+
+return media
+
+}
+
+
+
+// Stories returns account stories.
+
+//
+
+// Use StoryMedia.Next for pagination.
+
+//
+
+// See example: examples/account/stories.go
+
+func (account *Account) Stories() *StoryMedia {
+
+media := &StoryMedia{}
+
+media.uid = account.ID
+
+media.inst = account.inst
+
+media.endpoint = urlUserStories
+
+return media
+
+}
+
+
+
+// Tags returns media where account is tagged in
+
+//
+
+// For pagination use FeedMedia.Next()
+
+func (account *Account) Tags(minTimestamp []byte) (*FeedMedia, error) {
+
+timestamp := b2s(minTimestamp)
+
+body, err := account.inst.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlUserTags, account.ID),
+
+Query: map[string]string{
+
+"max_id": "",
+
+"rank_token": account.inst.rankToken,
+
+"min_timestamp": timestamp,
+
+"ranked_content": "true",
+
+},
+
+},
+
+)
+
+if err != nil {
+
+return nil, err
+
+}
+
+
+
+media := &FeedMedia{}
+
+err = json.Unmarshal(body, media)
+
+media.inst = account.inst
+
+media.endpoint = urlUserTags
+
+media.uid = account.ID
+
+return media, err
+
+}
+
+
+
+// Saved returns saved media.
+
+// To get all the media you have to
+
+// use the Next() method.
+
+func (account *Account) Saved() *SavedMedia {
+
+return &SavedMedia{
+
+inst: account.inst,
+
+endpoint: urlFeedSaved,
+
+err: nil,
+
+}
+
+}
+
+
+
+type editResp struct {
+
+Status string `json:"status"`
+
+Account Account `json:"user"`
+
+}
+
+
+
+func (account *Account) edit() {
+
+insta := account.inst
+
+acResp := editResp{}
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlCurrentUser,
+
+Query: map[string]string{
+
+"edit": "true",
+
+},
+
+},
+
+)
+
+if err == nil {
+
+err = json.Unmarshal(body, &acResp)
+
+if err == nil {
+
+acResp.Account.inst = insta
+
+*account = acResp.Account
+
+}
+
+}
+
+}
+
+
+
+// SetBiography changes your Instagram's biography.
+
+//
+
+// This function updates current Account information.
+
+func (account *Account) SetBiography(bio string) error {
+
+account.edit() // preparing to edit
+
+insta := account.inst
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"raw_text": bio,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlSetBiography,
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+if err == nil {
+
+var resp struct {
+
+User struct {
+
+Pk int64 `json:"pk"`
+
+Biography string `json:"biography"`
+
+} `json:"user"`
+
+Status string `json:"status"`
+
+}
+
+err = json.Unmarshal(body, &resp)
+
+if err == nil {
+
+account.Biography = resp.User.Biography
+
+}
+
+}
+
+return err
+
+}
+
+
+
+// Liked are liked publications
+
+func (account *Account) Liked() *FeedMedia {
+
+insta := account.inst
+
+
+
+media := &FeedMedia{}
+
+media.inst = insta
+
+media.endpoint = urlFeedLiked
+
+return media
+
+}
+
+
+
+// PendingFollowRequests returns pending follow requests.
+
+func (account *Account) PendingFollowRequests() ([]User, error) {
+
+insta := account.inst
+
+resp, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: urlFriendshipPending,
+
+},
+
+)
+
+if err != nil {
+
+return nil, err
+
+}
+
+
+
+var result struct {
+
+Users []User `json:"users"`
+
+// TODO: pagination
+
+// TODO: SuggestedUsers
+
+Status string `json:"status"`
+
+}
+
+err = json.Unmarshal(resp, &result)
+
+if err != nil {
+
+return nil, err
+
+}
+
+if result.Status != "ok" {
+
+return nil, fmt.Errorf("bad status: %s", result.Status)
+
+}
+
+
+
+return result.Users, nil
+
+}
+
+
+
+// Archived returns current account archive feed
+
+//
+
+// For pagination use FeedMedia.Next()
+
+func (account *Account) Archived(params ...interface{}) *FeedMedia {
+
+insta := account.inst
+
+
+
+media := &FeedMedia{}
+
+media.inst = insta
+
+media.endpoint = urlUserArchived
+
+
+
+for _, param := range params {
+
+switch s := param.(type) {
+
+case string:
+
+media.timestamp = s
+
+}
+
+}
+
+
+
+return media
+
+}
+
+
+COMMENTS
+
+
+package goinsta
+
+
+
+
+import (
+
+"encoding/json"
+
+"fmt"
+
+"strconv"
+
+)
+
+
+
+// Comments allows user to interact with media (item) comments.
+
+// You can Add or Delete by index or by user name.
+
+type Comments struct {
+
+item *Item
+
+endpoint string
+
+err error
+
+
+
+Items []Comment `json:"comments"`
+
+CommentCount int64 `json:"comment_count"`
+
+Caption Caption `json:"caption"`
+
+CaptionIsEdited bool `json:"caption_is_edited"`
+
+HasMoreComments bool `json:"has_more_comments"`
+
+HasMoreHeadloadComments bool `json:"has_more_headload_comments"`
+
+ThreadingEnabled bool `json:"threading_enabled"`
+
+MediaHeaderDisplay string `json:"media_header_display"`
+
+InitiateAtTop bool `json:"initiate_at_top"`
+
+InsertNewCommentToTop bool `json:"insert_new_comment_to_top"`
+
+PreviewComments []Comment `json:"preview_comments"`
+
+NextMaxID json.RawMessage `json:"next_max_id,omitempty"`
+
+NextMinID json.RawMessage `json:"next_min_id,omitempty"`
+
+CommentLikesEnabled bool `json:"comment_likes_enabled"`
+
+DisplayRealtimeTypingIndicator bool `json:"display_realtime_typing_indicator"`
+
+Status string `json:"status"`
+
+//PreviewComments []Comment `json:"preview_comments"`
+
+}
+
+
+
+func (comments *Comments) setValues() {
+
+for i := range comments.Items {
+
+comments.Items[i].setValues(comments.item.media.instagram())
+
+}
+
+}
+
+
+
+func newComments(item *Item) *Comments {
+
+c := &Comments{
+
+item: item,
+
+}
+
+return c
+
+}
+
+
+
+func (comments Comments) Error() error {
+
+return comments.err
+
+}
+
+
+
+// Disable disables comments in FeedMedia.
+
+//
+
+// See example: examples/media/commentDisable.go
+
+func (comments *Comments) Disable() error {
+
+switch comments.item.media.(type) {
+
+case *StoryMedia:
+
+return fmt.Errorf("Incompatible type. Cannot use Disable() with StoryMedia type")
+
+default:
+
+}
+
+
+
+insta := comments.item.media.instagram()
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"media_id": comments.item.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+
+
+_, err = insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentDisable, comments.item.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+return err
+
+}
+
+
+
+// Enable enables comments in FeedMedia
+
+//
+
+// See example: examples/media/commentEnable.go
+
+func (comments *Comments) Enable() error {
+
+switch comments.item.media.(type) {
+
+case *StoryMedia:
+
+return fmt.Errorf("Incompatible type. Cannot use Enable() with StoryMedia type")
+
+default:
+
+}
+
+
+
+insta := comments.item.media.instagram()
+
+data, err := insta.prepareData(
+
+map[string]interface{}{
+
+"media_id": comments.item.ID,
+
+},
+
+)
+
+if err != nil {
+
+return err
+
+}
+
+
+
+_, err = insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentEnable, comments.item.ID),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+return err
+
+}
+
+
+
+// Next allows comment pagination.
+
+//
+
+// This function support concurrency methods to get comments using Last and Next ID
+
+//
+
+// New comments are stored in Comments.Items
+
+func (comments *Comments) Next() bool {
+
+if comments.err != nil {
+
+return false
+
+}
+
+
+
+item := comments.item
+
+insta := item.media.instagram()
+
+endpoint := comments.endpoint
+
+query := map[string]string{
+
+// "can_support_threading": "true",
+
+}
+
+if comments.NextMaxID != nil {
+
+next, _ := strconv.Unquote(string(comments.NextMaxID))
+
+query["max_id"] = next
+
+} else if comments.NextMinID != nil {
+
+next, _ := strconv.Unquote(string(comments.NextMinID))
+
+query["min_id"] = next
+
+}
+
+
+
+body, err := insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: endpoint,
+
+Connection: "keep-alive",
+
+Query: query,
+
+},
+
+)
+
+if err == nil {
+
+c := Comments{}
+
+err = json.Unmarshal(body, &c)
+
+if err == nil {
+
+*comments = c
+
+comments.endpoint = endpoint
+
+comments.item = item
+
+if (!comments.HasMoreComments || comments.NextMaxID == nil) &&
+
+(!comments.HasMoreHeadloadComments || comments.NextMinID == nil) {
+
+comments.err = ErrNoMore
+
+}
+
+comments.setValues()
+
+return true
+
+}
+
+}
+
+comments.err = err
+
+return false
+
+}
+
+
+
+// Sync prepare Comments to receive comments.
+
+// Use Next to receive comments.
+
+//
+
+// See example: examples/media/commentsSync.go
+
+func (comments *Comments) Sync() {
+
+endpoint := fmt.Sprintf(urlCommentSync, comments.item.ID)
+
+comments.endpoint = endpoint
+
+return
+
+}
+
+
+
+// Add push a comment in media.
+
+//
+
+// If parent media is a Story this function will send a private message
+
+// replying the Instagram story.
+
+//
+
+// See example: examples/media/commentsAdd.go
+
+func (comments *Comments) Add(text string) (err error) {
+
+var opt *reqOptions
+
+item := comments.item
+
+insta := item.media.instagram()
+
+
+
+switch item.media.(type) {
+
+case *StoryMedia:
+
+to, err := prepareRecipients(item)
+
+if err != nil {
+
+return err
+
+}
+
+
+
+query := insta.prepareDataQuery(
+
+map[string]interface{}{
+
+"recipient_users": to,
+
+"action": "send_item",
+
+"media_id": item.ID,
+
+"client_context": generateUUID(),
+
+"text": text,
+
+"entry": "reel",
+
+"reel_id": item.User.ID,
+
+},
+
+)
+
+opt = &reqOptions{
+
+Connection: "keep-alive",
+
+Endpoint: fmt.Sprintf("%s?media_type=%s", urlReplyStory, item.MediaToString()),
+
+Query: query,
+
+IsPost: true,
+
+}
+
+case *FeedMedia: // normal media
+
+var data string
+
+data, err = insta.prepareData(
+
+map[string]interface{}{
+
+"comment_text": text,
+
+},
+
+)
+
+opt = &reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentAdd, item.Pk),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+}
+
+}
+
+if err != nil {
+
+return err
+
+}
+
+
+
+// ignoring response
+
+_, err = insta.sendRequest(opt)
+
+return err
+
+}
+
+
+
+// Del deletes comment.
+
+func (comments *Comments) Del(comment *Comment) error {
+
+insta := comments.item.media.instagram()
+
+
+
+data, err := insta.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+id := comment.getid()
+
+
+
+_, err = insta.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentDelete, comments.item.ID, id),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+return err
+
+}
+
+
+
+// DelByID removes comment using id.
+
+//
+
+// See example: examples/media/commentsDelByID.go
+
+func (comments *Comments) DelByID(id string) error {
+
+return comments.Del(&Comment{idstr: id})
+
+}
+
+
+
+// DelMine removes all of your comments limited by parsed parameter.
+
+//
+
+// If limit is <= 0 DelMine will delete all your comments.
+
+//
+
+// See example: examples/media/commentsDelMine.go
+
+func (comments *Comments) DelMine(limit int) error {
+
+i := 0
+
+if limit <= 0 {
+
+i = limit - 1
+
+}
+
+comments.Sync()
+
+
+
+insta := comments.item.media.instagram()
+
+floop:
+
+for comments.Next() {
+
+for _, c := range comments.Items {
+
+if c.UserID == insta.Account.ID || c.User.ID == insta.Account.ID {
+
+if i >= limit {
+
+break floop
+
+}
+
+comments.Del(&c)
+
+i++
+
+}
+
+}
+
+}
+
+if err := comments.Error(); err != nil && err != ErrNoMore {
+
+return err
+
+}
+
+return nil
+
+}
+
+
+
+// Comment is a type of Media retrieved by the Comments methods
+
+type Comment struct {
+
+inst *Instagram
+
+idstr string
+
+
+
+ID int64 `json:"pk"`
+
+Text string `json:"text"`
+
+Type int `json:"type"`
+
+User User `json:"user"`
+
+UserID int64 `json:"user_id"`
+
+BitFlags int `json:"bit_flags"`
+
+ChildCommentCount int `json:"child_comment_count"`
+
+CommentIndex int `json:"comment_index"`
+
+CommentLikeCount int `json:"comment_like_count"`
+
+ContentType string `json:"content_type"`
+
+CreatedAt int64 `json:"created_at"`
+
+CreatedAtUtc int64 `json:"created_at_utc"`
+
+DidReportAsSpam bool `json:"did_report_as_spam"`
+
+HasLikedComment bool `json:"has_liked_comment"`
+
+InlineComposerDisplayCondition string `json:"inline_composer_display_condition"`
+
+OtherPreviewUsers []User `json:"other_preview_users"`
+
+PreviewChildComments []Comment `json:"preview_child_comments"`
+
+NextMaxChildCursor string `json:"next_max_child_cursor,omitempty"`
+
+HasMoreTailChildComments bool `json:"has_more_tail_child_comments,omitempty"`
+
+NextMinChildCursor string `json:"next_min_child_cursor,omitempty"`
+
+HasMoreHeadChildComments bool `json:"has_more_head_child_comments,omitempty"`
+
+NumTailChildComments int `json:"num_tail_child_comments,omitempty"`
+
+NumHeadChildComments int `json:"num_head_child_comments,omitempty"`
+
+Status string `json:"status"`
+
+}
+
+
+
+func (c *Comment) setValues(inst *Instagram) {
+
+c.User.inst = inst
+
+for i := range c.OtherPreviewUsers {
+
+c.OtherPreviewUsers[i].inst = inst
+
+}
+
+for i := range c.PreviewChildComments {
+
+c.PreviewChildComments[i].setValues(inst)
+
+}
+
+}
+
+
+
+func (c Comment) getid() string {
+
+switch {
+
+case c.ID == 0:
+
+return c.idstr
+
+case c.idstr == "":
+
+return strconv.FormatInt(c.ID, 10)
+
+}
+
+return ""
+
+}
+
+
+
+// Like likes comment.
+
+func (c *Comment) Like() error {
+
+data, err := c.inst.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+
+
+_, err = c.inst.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentLike, c.getid()),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+return err
+
+}
+
+
+
+// Unlike unlikes comment.
+
+func (c *Comment) Unlike() error {
+
+data, err := c.inst.prepareData()
+
+if err != nil {
+
+return err
+
+}
+
+
+
+_, err = c.inst.sendRequest(
+
+&reqOptions{
+
+Endpoint: fmt.Sprintf(urlCommentUnlike, c.getid()),
+
+Query: generateSignature(data),
+
+IsPost: true,
+
+},
+
+)
+
+return err
+
+}
